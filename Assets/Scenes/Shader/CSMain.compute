@@ -1,0 +1,121 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+uint width;
+uint height;
+float deltaTime;
+
+uint Random(uint x) { //hash function
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b; 
+    x = (x >> 16) ^ x;
+    return x;
+ }
+ 
+ float randomAngle(uint x) {
+    uint hash = Random(x);
+    float normalized = hash;
+    return normalized * 2.0 * float(3.14159265); 
+
+ }
+ 
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID) //test function to make sure hash function works as intended
+{
+
+    
+   int pixel = id.x + id.y * 2560;
+   uint randomNum = Random(pixel);
+   float normalized = randomNum / float(0xFFFFFFFF);
+   Result[id.xy] = float4(normalized, normalized, normalized, 1.0);
+    
+
+
+
+}
+#pragma kernel spawnInCenter
+struct Agent
+{
+    float2 pos;
+    float angle;
+};
+
+RWStructuredBuffer<Agent> AgentsOut : register(u0);
+
+static const float2 center = float2(2560 / 2, 1440 / 2);
+
+[numthreads(16, 1, 1)]
+void spawnInCenter (uint3 id : SV_DispatchThreadID) {
+    if (id.x >= AgentsOut.Length) return;
+    Agent agent;
+
+    agent.pos = center;
+
+    agent.angle = Random(id.x) % 2559;
+    AgentsOut[id.x] = agent;
+}
+
+#pragma kernel updateAgent
+
+void moveAgent(inout Agent agent, float deltaTime) {
+    float2 direction = float2(cos(agent.angle), sin(agent.angle));
+    agent.pos += direction * 1;
+    bool outOfBounds = false;
+
+    if (agent.pos.x < 0) { agent.pos.x = 0; outOfBounds = true; }
+    else if (agent.pos.x >= 2560) { agent.pos.x = 2560 - 1; outOfBounds = true; }
+    if (agent.pos.y < 0) { agent.pos.y = 0; outOfBounds = true; }
+    else if (agent.pos.y >= 1440) { agent.pos.y = 1440 - 1; outOfBounds = true; }
+
+    if (outOfBounds) {
+        float PI = 3.141592;
+        // Assuming agent.pos.x is used to generate a pseudo-random value for angle calculation
+        float randomValue = fmod(agent.pos.x + agent.pos.y, PI); // Modulo to simulate randomness, based on position
+        float newAngle = agent.angle;
+    
+        if (agent.pos.x == 0) {
+            // If agent hits the left boundary
+            newAngle = randomValue - PI / 2.0;
+        } else if (agent.pos.x >= 2560 - 1) {
+            // If agent hits the right boundary
+            newAngle = randomValue + (PI / 2.0);
+        }
+    
+        if (agent.pos.y == 0) {
+            
+            newAngle = randomValue;
+        } else if (agent.pos.y >= 1440 - 1) {
+            
+            newAngle = randomValue + PI;
+        }
+    
+        agent.angle = newAngle;
+    }
+    
+}
+[numthreads(256, 1, 1)]
+void updateAgent(uint3 id : SV_DispatchThreadID) {
+    if (id.x >= AgentsOut.Length) return;
+    Agent agent = AgentsOut[id.x];
+    moveAgent(agent, deltaTime);
+    AgentsOut[id.x] = agent;
+}
+
+#pragma kernel DrawAgent
+
+[numthreads(16,1,1)]
+void DrawAgent (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= 50) {
+		return;
+	}
+    Agent agent = AgentsOut[id.x];
+	// Draw to trail map
+	int cellX = (int)agent.pos.x;
+	int cellY = (int)agent.pos.y;
+	Result[int2(cellX, cellY)] = 4;
+
+}
