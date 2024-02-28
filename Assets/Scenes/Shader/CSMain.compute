@@ -1,18 +1,27 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 
-// Create a RenderTexture with enableRandomWrite flag and set it
+// Create a RenderTexture with enableRandomWrite flag and set it..
 // with cs.SetTexture
 RWTexture2D<float4> Result;
-uint width;
-uint height;
+RWTexture2D<float4> TrailMap : register(u2);
+//uint width;
+int width;
+//uint height;
+int height;
 float deltaTime;
+float time;
+int numAgents = 100000;
 
 uint Random(uint x) { //hash function
     x = ((x >> 16) ^ x) * 0x45d9f3b;
     x = ((x >> 16) ^ x) * 0x45d9f3b; 
     x = (x >> 16) ^ x;
     return x;
+ }
+ float randFloat(float value) { //hash function
+    float a = sin(value * 43758.5453);
+    return a - floor(a);
  }
  
  float randomAngle(uint x) {
@@ -27,7 +36,7 @@ void CSMain (uint3 id : SV_DispatchThreadID) //test function to make sure hash f
 {
 
     
-   int pixel = id.x + id.y * 2560;
+   int pixel = id.x + id.y * width;
    uint randomNum = Random(pixel);
    float normalized = randomNum / float(0xFFFFFFFF);
    Result[id.xy] = float4(normalized, normalized, normalized, 1.0);
@@ -42,44 +51,86 @@ struct Agent
     float2 pos;
     float angle;
 };
+float randFloat2(uint seed) {
+    seed = (seed ^ 12345391u) * 2654435769u + (uint)(time * 100000);
+    seed ^= (seed >> 16);
+    seed *= 2654435769u;
+    seed ^= (seed >> 16);
+    seed *= 2654435769u;
+    return (seed % 4294967295) / 4294967295.0f;
+}
 
+
+// Hash function www.cs.ubc.ca/~rbridson/docs/schechter-sca08-turbulence.pdf
+uint hash(uint state)
+{
+    state ^= 2747636419u;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    return state;
+}
+float scaleToRange01(uint state)
+{
+    return state / 4294967295.0;
+}
 RWStructuredBuffer<Agent> AgentsOut : register(u0);
 
-static const float2 center = float2(2560 / 2, 1440 / 2);
+static const float2 center = float2(width / 2, height / 2);
 
 [numthreads(16, 1, 1)]
 void spawnInCenter (uint3 id : SV_DispatchThreadID) {
-    if (id.x >= AgentsOut.Length) return;
+    // if (id.x >= numAgents) return;
     Agent agent;
 
-    agent.pos = center;
+    // Generate a random spawn angle for each agent
+    float spawnAngle = (id.x / (float)numAgents) * 2.0 * 3.14159265;
 
-    agent.angle = Random(id.x) % 2559;
+    // Generate a random radius within the circle for each agent
+    // Use your random function to generate a value between 0 and 1, then scale it by the circle's radius
+    float randomRadius = randFloat2(id.x) * 800; // Assuming randFloat generates a random float between 0.0 and 1.0
+
+    // Calculate the agent's position using the random radius and spawn angle
+    agent.pos = center + float2(cos(spawnAngle), sin(spawnAngle)) * randomRadius;
+
+    // Calculate the angle from the agent back to the center
+    float angleToCenter = atan2(center.y - agent.pos.y, center.x - agent.pos.x);
+
+    // Assign the calculated angle to the agent so it faces the center
+    agent.angle = angleToCenter;
+
     AgentsOut[id.x] = agent;
 }
 
+
 #pragma kernel updateAgent
 
+
+
 void moveAgent(inout Agent agent, float deltaTime) {
+
     float2 direction = float2(cos(agent.angle), sin(agent.angle));
-    agent.pos += direction * 1;
+    agent.pos += direction * deltaTime * 7;
     bool outOfBounds = false;
 
     if (agent.pos.x < 0) { agent.pos.x = 0; outOfBounds = true; }
-    else if (agent.pos.x >= 2560) { agent.pos.x = 2560 - 1; outOfBounds = true; }
+    else if (agent.pos.x >= width) { agent.pos.x = width - 1; outOfBounds = true; }
     if (agent.pos.y < 0) { agent.pos.y = 0; outOfBounds = true; }
-    else if (agent.pos.y >= 1440) { agent.pos.y = 1440 - 1; outOfBounds = true; }
+    else if (agent.pos.y >= height) { agent.pos.y = height - 1; outOfBounds = true; }
 
     if (outOfBounds) {
         float PI = 3.141592;
         // Assuming agent.pos.x is used to generate a pseudo-random value for angle calculation
-        float randomValue = fmod(agent.pos.x + agent.pos.y, PI); // Modulo to simulate randomness, based on position
+        float randomValue = (agent.pos.x + agent.pos.y) % PI;  // Modulo to simulate randomness, based on position
         float newAngle = agent.angle;
     
         if (agent.pos.x == 0) {
             // If agent hits the left boundary
             newAngle = randomValue - PI / 2.0;
-        } else if (agent.pos.x >= 2560 - 1) {
+           
+        } else if (agent.pos.x >= width - 1) {
             // If agent hits the right boundary
             newAngle = randomValue + (PI / 2.0);
         }
@@ -87,7 +138,7 @@ void moveAgent(inout Agent agent, float deltaTime) {
         if (agent.pos.y == 0) {
             
             newAngle = randomValue;
-        } else if (agent.pos.y >= 1440 - 1) {
+        } else if (agent.pos.y >= height - 1) {
             
             newAngle = randomValue + PI;
         }
@@ -96,10 +147,55 @@ void moveAgent(inout Agent agent, float deltaTime) {
     }
     
 }
+float sense(Agent agent, float quadrant) {
+    float sensorAngle = agent.angle + quadrant; //+ offset if needed
+    float2 sensorDirection = float2(cos(sensorAngle), sin(sensorAngle)); //makes line vector pointing in direction of  agent
+
+	int2 sensorCenter = agent.pos + sensorDirection * 60; //smaller values means smaller circles
+
+    float sum = 0;
+    for (int horizontal = -1; horizontal <= 1; horizontal++) { //change 1 to whaetever to change size of sensor radius
+        for (int vertical = -1; vertical <= 1; vertical++) {
+           int2 position = sensorCenter + int2(horizontal, vertical);
+
+           if (position.x >= 0 && position.x < width && position.y >= 0 && position.y <= height) {
+            sum += TrailMap[position].x;
+           }
+
+        }
+    }
+    return sum;
+}
 [numthreads(256, 1, 1)]
 void updateAgent(uint3 id : SV_DispatchThreadID) {
-    if (id.x >= AgentsOut.Length) return;
     Agent agent = AgentsOut[id.x];
+    float2 sensePos = agent.pos;
+    uint randomSteerStr = hash(sensePos.y * width + sensePos.x + hash(id.x + time * 100000));
+    float randomSteerStrength = scaleToRange01(randomSteerStr);
+    float turnSpeed = 100 * 2 * 3.1415;
+
+    float sensorAngleRad = 45   * (3.1415 / 180); //change based on degrees wanted
+
+    float Forward = sense(agent, 0);
+    float Right = sense(agent, -sensorAngleRad);
+    float Left = sense(agent, sensorAngleRad);
+
+    if (Forward > Left && Forward > Right) {
+		AgentsOut[id.x].angle += 0;
+	}
+    else if (Forward < Left && Forward < Right) {
+        AgentsOut[id.x].angle += (randomSteerStrength - 0.5) * deltaTime; // * turnspeed * deltatime
+    }
+    else if (Right > Left) {
+		AgentsOut[id.x].angle -= (randomSteerStrength) * deltaTime; //* turnSpeed * deltaTime;
+	}
+	// Turn left
+	else if (Left > Right) {
+		AgentsOut[id.x].angle += (randomSteerStrength) * deltaTime; // * turnSpeed * deltaTime;
+	}
+    
+    //if (id.x >= numAgents) return;
+    agent = AgentsOut[id.x];
     moveAgent(agent, deltaTime);
     AgentsOut[id.x] = agent;
 }
@@ -109,13 +205,55 @@ void updateAgent(uint3 id : SV_DispatchThreadID) {
 [numthreads(16,1,1)]
 void DrawAgent (uint3 id : SV_DispatchThreadID)
 {
-    if (id.x >= 50) {
-		return;
-	}
+  
     Agent agent = AgentsOut[id.x];
 	// Draw to trail map
 	int cellX = (int)agent.pos.x;
 	int cellY = (int)agent.pos.y;
-	Result[int2(cellX, cellY)] = 4;
+	Result[int2(cellX, cellY)] = 1;
 
+}
+
+#pragma kernel UpdateTrail
+// RWTexture2D<float4> TrailMap : register(u2);
+
+[numthreads(8, 8, 1)]
+void UpdateTrail (uint3 id : SV_DispatchThreadID)
+{
+    float4 originalColor = TrailMap[id.xy];
+    float dimFactor = 0.995;
+    float4 dimmedColor = originalColor * dimFactor;
+    TrailMap[id.xy] = dimmedColor;
+
+
+}
+
+#pragma kernel BlurTrail
+RWTexture2D<float4> Blur : register(u1);
+
+[numthreads(8, 8, 1)]
+void BlurTrail (uint3 id : SV_DispatchThreadID)
+{ 
+    float4 originalColor = TrailMap[id.xy];
+
+    float4 valsum = 0;
+
+    for (int horizontal = -1; horizontal <= 1; horizontal++) {
+        for (int vertical = -1; vertical <= 1; vertical++) {
+            int temph = id.x + horizontal;
+            int tempv = id.y + vertical;
+
+            if (temph >= 0 && temph <= width && tempv >= 0 && tempv <= height) {
+                valsum += TrailMap[int2(temph, tempv)];
+            }
+
+
+        }
+    }
+
+    float4 finalblur = valsum / 9;
+    float4 blurred = originalColor + (finalblur - originalColor) * 1;
+    float4 blurredValue = max(blurred, float4(0,0,0,0));
+    Blur[id.xy] = blurredValue;   
+   
 }
