@@ -5,6 +5,7 @@
 // with cs.SetTexture
 RWTexture2D<float4> Result;
 RWTexture2D<float4> TrailMap : register(u2);
+RWTexture2D<float4> MazeTexture : register(u3);
 //uint width;
 int width;
 //uint height;
@@ -25,7 +26,7 @@ uint Random(uint x) { //hash function
  }
  
  float randomAngle(uint x) {
-    uint hash = Random(x);
+    uint hash = Random(x);                                                                                                                                                                                                                                                                                                                                          
     float normalized = hash;
     return normalized * 2.0 * float(3.14159265); 
 
@@ -40,11 +41,20 @@ void CSMain (uint3 id : SV_DispatchThreadID) //test function to make sure hash f
    uint randomNum = Random(pixel);
    float normalized = randomNum / float(0xFFFFFFFF);
    Result[id.xy] = float4(normalized, normalized, normalized, 1.0);
+}
     
 
 
+#pragma kernel MazeGen
+
+[numthreads(8, 8, 1)]
+void MazeGen(uint3 id : SV_DispatchThreadID) {
+    MazeTexture[id.xy] = float4(0.0, 1.0, 0.0, 1.0); // Green for testing.
+
 
 }
+
+
 #pragma kernel spawnInCenter
 struct Agent
 {

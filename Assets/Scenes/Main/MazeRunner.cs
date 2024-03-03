@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI; // Add this to access UI elements
 
-public class ShaderRunner : MonoBehaviour
+public class MazeRunner : MonoBehaviour
 {
     public ComputeShader computeShader;
     
@@ -13,6 +13,7 @@ public class ShaderRunner : MonoBehaviour
     private ComputeBuffer agentsBuffer;
     private RenderTexture renderTexture;
     private RenderTexture trailTexture;
+    private RenderTexture mazeTexture;
     private void Start()
     {
         computeShader.SetInt("numAgents", numAgents);
@@ -24,17 +25,22 @@ public class ShaderRunner : MonoBehaviour
         RectTransform rt = displayImage.GetComponent<RectTransform>();
         rt.sizeDelta = new Vector2(width, height); // Set the size to 1920x1080
 
+        InitializeMazeTexture();
         InitializeRenderTexture();
         InitializeTrailTexture();
-        displayImage.texture = renderTexture;
-
+        
+        displayImage.texture = mazeTexture;
+        
+        
+        GenerateMaze();
+        
         spawnCenter();
     }
     void Update()
     {
+        
        CopyTrailToRenderTexture();
         int updateKernelID = computeShader.FindKernel("updateAgent");
-        //computeShader.SetFloat("deltaTime", Time.deltaTime);
         computeShader.SetTexture(updateKernelID, "TrailMap", trailTexture);
         computeShader.SetBuffer(updateKernelID, "AgentsOut", agentsBuffer);
         computeShader.Dispatch(updateKernelID, numAgents / 256, 1, 1);
@@ -46,6 +52,23 @@ public class ShaderRunner : MonoBehaviour
        Blur(); 
        CopyTrailToRenderTexture();
        
+    }
+
+    void GenerateMaze() {
+        int mazeKernelID = computeShader.FindKernel("MazeGen");
+        computeShader.SetTexture(mazeKernelID, "MazeTexture", mazeTexture);
+        computeShader.Dispatch(mazeKernelID, width / 8, height / 8, 1);
+    }
+
+    void GenMaze(width, height) {
+        startVertex = (0, height);
+        randomizedDFS():
+
+
+    }
+
+    void randomizedDFS(vertex) {
+        
     }
     void Blur() {
     int blurKernelID = computeShader.FindKernel("BlurTrail");
@@ -79,7 +102,15 @@ void CopyTrailToRenderTexture()
     Graphics.Blit(renderTexture, trailTexture);
 }
 
-
+void InitializeMazeTexture()
+{
+    mazeTexture = new RenderTexture(width, height, 0)
+    {
+        enableRandomWrite = true,
+        format = RenderTextureFormat.ARGBFloat
+    };
+    mazeTexture.Create();
+}
     void InitializeRenderTexture()
 {
     renderTexture = new RenderTexture(width, height, 0)
