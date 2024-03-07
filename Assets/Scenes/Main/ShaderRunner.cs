@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI; // Add this to access UI elements
+using UnityEngine.SceneManagement;
 
 public class ShaderRunner : MonoBehaviour
 {
@@ -32,6 +33,11 @@ public class ShaderRunner : MonoBehaviour
     }
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            // Load the main menu scene
+            SceneManager.LoadScene("Mainmenuscene"); // Replace with the actual name of your main menu scene
+        }
        CopyTrailToRenderTexture();
         int updateKernelID = computeShader.FindKernel("updateAgent");
         //computeShader.SetFloat("deltaTime", Time.deltaTime);

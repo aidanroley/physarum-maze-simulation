@@ -171,7 +171,7 @@ void updateAgent(uint3 id : SV_DispatchThreadID) {
     Agent agent = AgentsOut[id.x];
     float2 sensePos = agent.pos;
     uint randomSteerStr = hash(sensePos.y * width + sensePos.x + hash(id.x + time * 100000));
-    float randomSteerStrength = scaleToRange01(randomSteerStr) / 2;
+    float randomSteerStrength = scaleToRange01(randomSteerStr);
     float turnSpeed = 100 * 2 * 3.1415;
 
     float sensorAngleRad = 45   * (3.1415 / 180); //change based on degrees wanted

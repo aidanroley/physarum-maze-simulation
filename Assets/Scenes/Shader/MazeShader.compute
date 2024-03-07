@@ -5,7 +5,11 @@
 // with cs.SetTexture
 RWTexture2D<float4> Result;
 RWTexture2D<float4> TrailMap : register(u2);
-RWTexture2D<float4> MazeTexture : register(u3);
+
+Texture2D<float4> ReadTexture : register(t0); 
+SamplerState sampler0 : register(s0);
+
+uniform int randomValues;
 //uint width;
 int width;
 //uint height;
@@ -46,10 +50,12 @@ void CSMain (uint3 id : SV_DispatchThreadID) //test function to make sure hash f
 
 
 #pragma kernel MazeGen
+RWTexture2D<float4> MazeTexture : register(u3);
 
 [numthreads(8, 8, 1)]
 void MazeGen(uint3 id : SV_DispatchThreadID) {
-    MazeTexture[id.xy] = float4(0.0, 1.0, 0.0, 1.0); // Green for testing.
+    float4 color = Result[id.xy];
+    Result[id.xy] = color;
 
 
 }
@@ -90,27 +96,23 @@ RWStructuredBuffer<Agent> AgentsOut : register(u0);
 
 static const float2 center = float2(width / 2, height / 2);
 
+uniform int randomValue;
+
 [numthreads(16, 1, 1)]
 void spawnInCenter (uint3 id : SV_DispatchThreadID) {
-    // if (id.x >= numAgents) return;
     Agent agent;
 
+    uint seedX = hash(id.x + id.y * 2560 + randomValue); // Unique seed for x-coordinate
+    uint seedY = hash(id.x + id.y * 1440 + randomValue + 1); 
+    seedX = scaleToRange01(seedX) * 2230 + 100;
+    seedY = scaleToRange01(seedY) * 1150 + 120;
     // Generate a random spawn angle for each agent
     float spawnAngle = (id.x / (float)numAgents) * 2.0 * 3.14159265;
 
-    // Generate a random radius within the circle for each agent
-    // Use your random function to generate a value between 0 and 1, then scale it by the circle's radius
-    float randomRadius = randFloat2(id.x) * 800; // Assuming randFloat generates a random float between 0.0 and 1.0
 
-    // Calculate the agent's position using the random radius and spawn angle
-    agent.pos = center + float2(cos(spawnAngle), sin(spawnAngle)) * randomRadius;
-
-    // Calculate the angle from the agent back to the center
-    float angleToCenter = atan2(center.y - agent.pos.y, center.x - agent.pos.x);
-
-    // Assign the calculated angle to the agent so it faces the center
-    agent.angle = angleToCenter;
-
+    
+    agent.angle = spawnAngle;
+    agent.pos = float2(seedX, seedY);
     AgentsOut[id.x] = agent;
 }
 
@@ -120,22 +122,34 @@ void spawnInCenter (uint3 id : SV_DispatchThreadID) {
 
 
 void moveAgent(inout Agent agent, float deltaTime) {
+    float PI = 3.141592;
+    float newAngle = agent.angle;
 
     float2 direction = float2(cos(agent.angle), sin(agent.angle));
-    agent.pos += direction * deltaTime * 7;
+    agent.pos += direction * deltaTime * 5;
     bool outOfBounds = false;
+
+    int2 readPos = int2(agent.pos.x, agent.pos.y);
+        float4 readColor = ReadTexture.Load(int3(readPos, 0));
+        bool isNotYellow = !(readColor.r > 0.8f && readColor.g > 0.8f && readColor.b < 0.2f);
+        if (!isNotYellow) {
+            float randomValue = (agent.pos.x + agent.pos.y) % PI;
+            uint angle = hash(agent.pos.x + agent.pos.y * 2560 + randomValues); // Unique seed for x-coordinate
+            float great = scaleToRange01(angle) + agent.angle - PI/8;
+    
+            newAngle = angle;
+            agent.angle = great;
+        }
 
     if (agent.pos.x < 0) { agent.pos.x = 0; outOfBounds = true; }
     else if (agent.pos.x >= width) { agent.pos.x = width - 1; outOfBounds = true; }
     if (agent.pos.y < 0) { agent.pos.y = 0; outOfBounds = true; }
     else if (agent.pos.y >= height) { agent.pos.y = height - 1; outOfBounds = true; }
 
-    if (outOfBounds) {
-        float PI = 3.141592;
+    if (outOfBounds && isNotYellow) {
+        
         // Assuming agent.pos.x is used to generate a pseudo-random value for angle calculation
-        float randomValue = (agent.pos.x + agent.pos.y) % PI;  // Modulo to simulate randomness, based on position
-        float newAngle = agent.angle;
-    
+        float randomValue = (agent.pos.x + agent.pos.y) % PI;  // Modulo to simulate randomness, based on position   
         if (agent.pos.x == 0) {
             // If agent hits the left boundary
             newAngle = randomValue - PI / 2.0;
@@ -161,7 +175,7 @@ float sense(Agent agent, float quadrant) {
     float sensorAngle = agent.angle + quadrant; //+ offset if needed
     float2 sensorDirection = float2(cos(sensorAngle), sin(sensorAngle)); //makes line vector pointing in direction of  agent
 
-	int2 sensorCenter = agent.pos + sensorDirection * 60; //smaller values means smaller circles
+	int2 sensorCenter = agent.pos + sensorDirection * 30; //smaller values means smaller circles
 
     float sum = 0;
     for (int horizontal = -1; horizontal <= 1; horizontal += 1) { //change  1 to whaetever to change size of sensor radius
@@ -220,8 +234,12 @@ void DrawAgent (uint3 id : SV_DispatchThreadID)
 	// Draw to trail map
 	int cellX = (int)agent.pos.x;
 	int cellY = (int)agent.pos.y;
-	Result[int2(cellX, cellY)] = 1;
 
+    float4 color = ReadTexture.Load(int3(cellX, cellY, 0));
+    bool isYellow = color.r > 0.8f && color.g > 0.8f && color.b < 0.2f;
+    if (!isYellow) {
+	Result[int2(cellX, cellY)] = 1;
+    }
 }
 
 #pragma kernel UpdateTrail
@@ -232,9 +250,20 @@ void UpdateTrail (uint3 id : SV_DispatchThreadID)
 {
     float4 originalColor = TrailMap[id.xy];
     float dimFactor = 0.995;
-    float4 dimmedColor = originalColor * dimFactor;
-    TrailMap[id.xy] = dimmedColor;
+    float epsilon = 0.01; // Adjust epsilon based on how strict you want the comparison to be
+    bool isGrayscale = abs(originalColor.r - originalColor.g) < epsilon && 
+                       abs(originalColor.g - originalColor.b) < epsilon;
 
+    if(isGrayscale)
+    {
+        int2 readPos = int2(id.x, id.y);
+        float4 readColor = ReadTexture.Load(int3(readPos, 0));
+        bool isNotYellow = !(readColor.r > 0.8f && readColor.g > 0.8f && readColor.b < 0.2f);
+        if (isNotYellow) {
+        float4 dimmedColor = originalColor * dimFactor;
+        TrailMap[id.xy] = dimmedColor;
+        }
+    }
 
 }
 
@@ -262,8 +291,14 @@ void BlurTrail (uint3 id : SV_DispatchThreadID)
     }
 
     float4 finalblur = valsum / 9;
-    float4 blurred = originalColor + (finalblur - originalColor) * 1;
+    float4 blurred = originalColor + (finalblur - originalColor) * 0.1;
     float4 blurredValue = max(blurred, float4(0,0,0,0));
+
+    int2 readPos = int2(id.x, id.y);
+        float4 readColor = ReadTexture.Load(int3(readPos, 0));
+        bool isNotYellow = !(readColor.r > 0.8f && readColor.g > 0.8f && readColor.b < 0.2f);
+        if (isNotYellow) {
     Blur[id.xy] = blurredValue;   
+        }
    
 }
