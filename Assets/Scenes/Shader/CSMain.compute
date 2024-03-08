@@ -1,13 +1,11 @@
-// Each #kernel tells which function to compile; you can have many kernels
+
 #pragma kernel CSMain
 
-// Create a RenderTexture with enableRandomWrite flag and set it..
-// with cs.SetTexture
+
 RWTexture2D<float4> Result;
 RWTexture2D<float4> TrailMap : register(u2);
-//uint width;
+
 int width;
-//uint height;
 int height;
 float deltaTime;
 float time;
@@ -19,7 +17,7 @@ uint Random(uint x) { //hash function
     x = (x >> 16) ^ x;
     return x;
  }
- float randFloat(float value) { //hash function
+ float randFloat(float value) { //hash function for float values
     float a = sin(value * 43758.5453);
     return a - floor(a);
  }
@@ -82,15 +80,12 @@ static const float2 center = float2(width / 2, height / 2);
 
 [numthreads(16, 1, 1)]
 void spawnInCenter (uint3 id : SV_DispatchThreadID) {
-    // if (id.x >= numAgents) return;
     Agent agent;
 
     // Generate a random spawn angle for each agent
     float spawnAngle = (id.x / (float)numAgents) * 2.0 * 3.14159265;
 
-    // Generate a random radius within the circle for each agent
-    // Use your random function to generate a value between 0 and 1, then scale it by the circle's radius
-    float randomRadius = randFloat2(id.x) * 800; // Assuming randFloat generates a random float between 0.0 and 1.0
+    float randomRadius = randFloat2(id.x) * 800; 
 
     // Calculate the agent's position using the random radius and spawn angle
     agent.pos = center + float2(cos(spawnAngle), sin(spawnAngle)) * randomRadius;
@@ -122,8 +117,8 @@ void moveAgent(inout Agent agent, float deltaTime) {
 
     if (outOfBounds) {
         float PI = 3.141592;
-        // Assuming agent.pos.x is used to generate a pseudo-random value for angle calculation
-        float randomValue = (agent.pos.x + agent.pos.y) % PI;  // Modulo to simulate randomness, based on position
+        // agent.pos.x is used to generate a pseudo-random value for angle calculation
+        float randomValue = (agent.pos.x + agent.pos.y) % PI;  
         float newAngle = agent.angle;
     
         if (agent.pos.x == 0) {
@@ -184,17 +179,16 @@ void updateAgent(uint3 id : SV_DispatchThreadID) {
 		AgentsOut[id.x].angle += 0;
 	}
     else if (Forward < Left && Forward < Right) {
-        AgentsOut[id.x].angle += (randomSteerStrength - 0.5) * deltaTime; // * turnspeed * deltatime
+        AgentsOut[id.x].angle += (randomSteerStrength - 0.5) * deltaTime; 
     }
     else if (Right > Left) {
-		AgentsOut[id.x].angle -= (randomSteerStrength) * deltaTime; //* turnSpeed * deltaTime;
+		AgentsOut[id.x].angle -= (randomSteerStrength) * deltaTime; 
 	}
 	// Turn left
 	else if (Left > Right) {
-		AgentsOut[id.x].angle += (randomSteerStrength) * deltaTime; // * turnSpeed * deltaTime;
+		AgentsOut[id.x].angle += (randomSteerStrength) * deltaTime; 
 	}
     
-    //if (id.x >= numAgents) return;
     agent = AgentsOut[id.x];
     moveAgent(agent, deltaTime);
     AgentsOut[id.x] = agent;
@@ -215,7 +209,6 @@ void DrawAgent (uint3 id : SV_DispatchThreadID)
 }
 
 #pragma kernel UpdateTrail
-// RWTexture2D<float4> TrailMap : register(u2);
 
 [numthreads(8, 8, 1)]
 void UpdateTrail (uint3 id : SV_DispatchThreadID)

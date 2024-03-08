@@ -1,8 +1,6 @@
-// Each #kernel tells which function to compile; you can have many kernels
+
 #pragma kernel CSMain
 
-// Create a RenderTexture with enableRandomWrite flag and set it..
-// with cs.SetTexture
 RWTexture2D<float4> Result;
 RWTexture2D<float4> TrailMap : register(u2);
 
@@ -10,9 +8,7 @@ Texture2D<float4> ReadTexture : register(t0);
 SamplerState sampler0 : register(s0);
 
 uniform int randomValues;
-//uint width;
 int width;
-//uint height;
 int height;
 float deltaTime;
 float time;
@@ -148,8 +144,8 @@ void moveAgent(inout Agent agent, float deltaTime) {
 
     if (outOfBounds && isNotYellow) {
         
-        // Assuming agent.pos.x is used to generate a pseudo-random value for angle calculation
-        float randomValue = (agent.pos.x + agent.pos.y) % PI;  // Modulo to simulate randomness, based on position   
+        //agent.pos.x is used to generate a pseudo-random value for angle calculation
+        float randomValue = (agent.pos.x + agent.pos.y) % PI;  
         if (agent.pos.x == 0) {
             // If agent hits the left boundary
             newAngle = randomValue - PI / 2.0;
@@ -218,7 +214,7 @@ void updateAgent(uint3 id : SV_DispatchThreadID) {
 		AgentsOut[id.x].angle += (randomSteerStrength) * deltaTime; // * turnSpeed * deltaTime;
 	}
     
-    //if (id.x >= numAgents) return;
+ 
     agent = AgentsOut[id.x];
     moveAgent(agent, deltaTime);
     AgentsOut[id.x] = agent;
@@ -243,14 +239,13 @@ void DrawAgent (uint3 id : SV_DispatchThreadID)
 }
 
 #pragma kernel UpdateTrail
-// RWTexture2D<float4> TrailMap : register(u2);
 
 [numthreads(8, 8, 1)]
 void UpdateTrail (uint3 id : SV_DispatchThreadID)
 {
     float4 originalColor = TrailMap[id.xy];
     float dimFactor = 0.995;
-    float epsilon = 0.01; // Adjust epsilon based on how strict you want the comparison to be
+    float epsilon = 0.01; // Adjust epsilon based on how strict comparison is to be
     bool isGrayscale = abs(originalColor.r - originalColor.g) < epsilon && 
                        abs(originalColor.g - originalColor.b) < epsilon;
 

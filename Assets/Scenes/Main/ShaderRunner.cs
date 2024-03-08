@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI; // Add this to access UI elements
+using UnityEngine.UI; 
 using UnityEngine.SceneManagement;
 
 public class ShaderRunner : MonoBehaviour
@@ -9,7 +9,7 @@ public class ShaderRunner : MonoBehaviour
      int numAgents = 10000;
      int width = 2560;
       int height = 1440;
-    public RawImage displayImage; // Assign this in the Inspector
+    public RawImage displayImage; 
 
     private ComputeBuffer agentsBuffer;
     private RenderTexture renderTexture;
@@ -21,9 +21,9 @@ public class ShaderRunner : MonoBehaviour
         computeShader.SetFloat("time", Time.fixedTime);
         computeShader.SetFloat("width", width);
         computeShader.SetFloat("height", height);
-        // Adjust the size of the RawImage's RectTransform
+        
         RectTransform rt = displayImage.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(width, height); // Set the size to 1920x1080
+        rt.sizeDelta = new Vector2(width, height); 
 
         InitializeRenderTexture();
         InitializeTrailTexture();
@@ -36,11 +36,10 @@ public class ShaderRunner : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             // Load the main menu scene
-            SceneManager.LoadScene("Mainmenuscene"); // Replace with the actual name of your main menu scene
+            SceneManager.LoadScene("Mainmenuscene"); 
         }
        CopyTrailToRenderTexture();
         int updateKernelID = computeShader.FindKernel("updateAgent");
-        //computeShader.SetFloat("deltaTime", Time.deltaTime);
         computeShader.SetTexture(updateKernelID, "TrailMap", trailTexture);
         computeShader.SetBuffer(updateKernelID, "AgentsOut", agentsBuffer);
         computeShader.Dispatch(updateKernelID, numAgents / 256, 1, 1);
@@ -72,7 +71,7 @@ void UpdateTrailMap() {
 }
 void DrawAgentsOnTexture()
 {
-    // Example of setting up and dispatching a drawing kernel
+    
     int drawKernelID = computeShader.FindKernel("DrawAgent");
     computeShader.SetBuffer(drawKernelID, "AgentsOut", agentsBuffer);
     computeShader.SetTexture(drawKernelID, "Result", renderTexture);
@@ -80,8 +79,7 @@ void DrawAgentsOnTexture()
 }
 void CopyTrailToRenderTexture()
 {
-    // If using a compute shader for copying, set up and dispatch it here.
-    // For simplicity, here's how you could do it with Graphics.Blit():
+    
     Graphics.Blit(renderTexture, trailTexture);
 }
 
@@ -112,7 +110,7 @@ void CopyTrailToRenderTexture()
         computeShader.SetBuffer(kernelID, "AgentsOut", agentsBuffer);
 
         computeShader.Dispatch(kernelID, numAgents / 16, 1, 1);
-        //displayImage.texture = renderTexture;
+        
        
 void Noise() {
         

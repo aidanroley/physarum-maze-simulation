@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI; // Add this to access UI elements
+using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System;
 using System.Collections.Generic;
@@ -11,7 +11,7 @@ public class MazeRunner : MonoBehaviour
      int numAgents = 10000;
      int width = 2560;
       int height = 1440;
-    public RawImage displayImage; // Assign this in the Inspector
+    public RawImage displayImage; 
 
     private ComputeBuffer agentsBuffer;
     private RenderTexture renderTexture;
@@ -27,7 +27,7 @@ public class MazeRunner : MonoBehaviour
         computeShader.SetFloat("height", height);
         // Adjust the size of the RawImage's RectTransform
         RectTransform rt = displayImage.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(width, height); // Set the size to 1920x1080
+        rt.sizeDelta = new Vector2(width, height); 
 
         InitializeMazeTexture();
         InitializeRenderTexture();
@@ -47,13 +47,11 @@ public class MazeRunner : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             // Load the main menu scene
-            SceneManager.LoadScene("Mainmenuscene"); // Replace with the actual name of your main menu scene
+            SceneManager.LoadScene("Mainmenuscene"); 
         }
        CopyTrailToRenderTexture();
-        //int randomInt = rnd.Next();
         int updateKernelID = computeShader.FindKernel("updateAgent");
         computeShader.SetTexture(updateKernelID, "TrailMap", trailTexture);
-        //computeShader.SetInt("randomValues", randomInt);
         computeShader.SetTexture(updateKernelID, "ReadTexture", mazeRead);
         computeShader.SetBuffer(updateKernelID, "AgentsOut", agentsBuffer);
         computeShader.Dispatch(updateKernelID, numAgents / 256, 1, 1);
@@ -62,7 +60,6 @@ public class MazeRunner : MonoBehaviour
         CopyTrailToRenderTexture();
         UpdateTrailMap();  
         CopyTrailToRenderTexture();
-        //Blur(); 
         CopyTrailToRenderTexture();
        
     }
@@ -78,8 +75,10 @@ public class MazeRunner : MonoBehaviour
             pixels[i] = Color.black;
         }
         mazeTexture.SetPixels(pixels);
-        
-        mazeTexture.filterMode = FilterMode.Point; // Set filter mode to Point for crisp pixel art
+
+        // Set filter mode to Point for crisp pixel art
+        mazeTexture.filterMode = FilterMode.Point; 
+
         //instantiate the arrays for wall pixels here
         bool[,] horizontalWalls = new bool[widthMaze + 1, heightMaze];
         bool[,] verticalWalls = new bool[widthMaze, heightMaze + 1];
@@ -263,8 +262,7 @@ void DrawAgentsOnTexture()
 }
 void CopyTrailToRenderTexture()
 {
-    // If using a compute shader for copying, set up and dispatch it here.
-    // For simplicity, here's how you could do it with Graphics.Blit():
+    //this just copies the textures
     Graphics.Blit(renderTexture, trailTexture);
 }
 
