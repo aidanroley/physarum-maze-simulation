@@ -9,6 +9,7 @@ A maze is randomly generated and the slime agents are dropped in to see how they
 
 #### Instructions
 Open the exe from the zip file in releases. Once the program runs, it will default to maze mode, hit "Esc" key to go back to the main menu where you can then select which mode you want to do.
+Because this program uses shaders, you *need* a GPU to run this program smoothly.
 
 <img src="https://github.com/hrblr/PhysarumMazeGenerator/blob/main/.vscode/Sim.PNG?raw=true">
 <img src = "https://github.com/hrblr/PhysarumMazeGenerator/blob/main/.vscode/Capture1.PNG?raw=true">
